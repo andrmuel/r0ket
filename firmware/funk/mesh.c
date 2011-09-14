@@ -41,6 +41,9 @@ int mesh_sanity(uint8_t * pkt){
         if(MO_TIME(pkt)<0)
             return 1;
     };
+    if(MO_TYPE(pkt)=='t'){
+        return 1;
+    };
     if(MO_TYPE(pkt)>0x7f || MO_TYPE(pkt)<0x20)
         return 1;
     return 0;
@@ -251,7 +254,7 @@ uint8_t mesh_recvqloop_work(void){
                 return 2;
 
         if((MO_TYPE(buf)>='A' && MO_TYPE(buf)<='C') ||
-                (MO_TYPE(buf)>='A' && MO_TYPE(buf)<='C'))
+                (MO_TYPE(buf)>='a' && MO_TYPE(buf)<='c'))
                     meshmsg=1;
 
         memcpy(mpkt->pkt,buf,MESHPKTSIZE);
