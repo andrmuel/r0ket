@@ -8,7 +8,8 @@
 
 #define FLEN 13
 
-int getFiles(char files[][FLEN], uint8_t count, uint16_t skip, char *ext)
+/* if count is 0xff (-1) do not fill files and return the count instead */
+int getFiles(char files[][FLEN], uint8_t count, uint16_t skip, const char *ext)
 {
     DIR dir;                /* Directory object */
     FILINFO Finfo;
@@ -37,7 +38,9 @@ int getFiles(char files[][FLEN], uint8_t count, uint16_t skip, char *ext)
             continue;
         };
 
-        strcpy(files[pos++],Finfo.fname);
+        if(count != 0xff)
+            strcpy(files[pos],Finfo.fname);
+        pos++;
         if( pos == count )
             break;
     }
@@ -45,22 +48,24 @@ int getFiles(char files[][FLEN], uint8_t count, uint16_t skip, char *ext)
 }
 
 #define PERPAGE 7
-int selectFile(char *filename, char *extension)
+int selectFile(char *filename, const char *extension)
 {
     int skip = 0;
     char key;
     int selected = 0;
+    int file_count = getFiles(NULL, 0xff, 0, extension);
+
     font=&Font_7x8;
+    if(!file_count){
+        lcdPrintln("No Files?");
+        lcdRefresh();
+        getInputWait();
+        getInputWaitRelease();
+        return -1;
+    };
     while(1){
         char files[PERPAGE][FLEN];
         int count = getFiles(files, PERPAGE, skip, extension);
-        if(!count){
-            lcdPrintln("No Files?");
-            lcdRefresh();
-            getInputWait();
-            getInputWaitRelease();
-            return -1;
-        };
 
         if(count<PERPAGE && selected==count){
             skip--;
@@ -88,15 +93,18 @@ int selectFile(char *filename, char *extension)
                 files[i][dot]='.';
         }
         lcdRefresh();
-        key=getInputWait();
-        getInputWaitRelease();
+        key=getInputWaitRepeat();
         switch(key){
             case BTN_DOWN:
                 if( selected < count-1 ){
                     selected++;
                     goto redraw;
                 }else{
-                    skip++;
+                    if(skip == file_count - PERPAGE) { // wrap to top
+                        selected = 0;
+                        skip = 0;
+                    } else 
+                        skip++;
                 }
                 break;
             case BTN_UP:
@@ -106,14 +114,20 @@ int selectFile(char *filename, char *extension)
                 }else{
                     if( skip > 0 ){
                         skip--;
+                    } else { // wrap to bottom
+                        skip = file_count - PERPAGE;
+                        if(skip < 0) skip = 0;
+                        selected = file_count - skip - 1;
                     }
                 }
                 break;
             case BTN_LEFT:
+                getInputWaitRelease();
                 return -1;
             case BTN_ENTER:
             case BTN_RIGHT:
                 strcpy(filename, files[selected]);
+                getInputWaitRelease();
                 return 0;
         }
     }

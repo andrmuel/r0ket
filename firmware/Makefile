@@ -9,12 +9,10 @@ LIBS =
 VPATH +=
 OBJS += main.o
 
-ifeq "$(wildcard table.c)" "table.c"
-ifeq "$(APP)" "serial"
+ifeq "$(TABLE)" "NO"
 OBJS +=
 else
 OBJS += table.o
-endif
 endif
 
 LIBS += lcd/liblcd.a
@@ -25,6 +23,7 @@ LIBS += filesystem/libfat.a
 LIBS += usb/libusb.a
 LIBS += funk/libfunk.a
 LIBS += usbcdc/libusbcdc.a
+LIBS += flame/libflame.a
 
 ##########################################################################
 # GNU GCC compiler flags
@@ -34,13 +33,17 @@ INCLUDE_PATHS = -I$(ROOT_PATH) -I$(ROOT_PATH)/core
 
 include $(ROOT_PATH)/Makefile.inc
 
-LDFLAGS+= -Wl,--gc-sections
+ifdef APP
+OUTFILE=$(APP)
+endif
+
+LDFLAGS+= --gc-sections
 OBJS += lpc1xxx/$(TARGET)_handlers.o lpc1xxx/LPC1xxx_startup.o
 
 ##########################################################################
 # Startup files
 ##########################################################################
-LDLIBS  = -lm
+LDLIBS  =
 LDLIBS += -Lapplications -lapp
 LDLIBS += -Lfunk -lfunk
 LDLIBS += -Lusbcdc -lusbcdc
@@ -51,6 +54,7 @@ LDLIBS += -Lcore -lcore
 LDLIBS += -Lusb -lusb
 LDLIBS += -lbasic
 LDLIBS += -lfunk
+LDLIBS += -Lflame -lflame
 OCFLAGS = --strip-unneeded
 
 SUBDIRS?= $(foreach lib,$(LIBS),$(dir $(lib)))
@@ -66,26 +70,26 @@ all: $(OUTFILE).bin
 protect: $(OUTFILE).bin
 	$(LPCFIX) -p 2 $(OUTFILE).bin
 
-loadables: $(OUTFILE).bin
-	@cd loadable && $(MAKE)
-
-l0dables:
+l0dables: table.c
 	@cd l0dable && $(MAKE)
 
 clean:
-	rm -f $(OBJS) $(LD_TEMP) $(OUTFILE).elf $(OUTFILE).bin $(OUTFILE).hex
+	rm -f $(OBJS) $(LD_TEMP) $(OUTFILE).elf $(OUTFILE).bin $(OUTFILE).hex $(OUTFILE).map table.c table.h
 	for dir in $(SUBDIRS); do \
 	    $(MAKE) $(CONFIG_MAKE_PRINTDIRECTORY) -C $$dir clean; \
 	done
 	$(MAKE) $(CONFIG_MAKE_PRINTDIRECTORY) -C l0dable clean
 
 flash: all
-	../tools/bootloader/autoflash
+	../tools/bootloader/simpleflash $(OUTFILE).bin
 
 ### Internal targets
 
 %.o : %.c
 	$(CC) $(CFLAGS) -o $@ $<
+
+table.c: l0dable/EXPORTS
+	./l0dable/mktable.pl
 
 ### Make all libraries...
 .PHONY: subdirs $(SUBDIRS)
@@ -107,7 +111,7 @@ $(LD_TEMP):
 	-@echo "INCLUDE $(LD_SCRIPT)" >> $(LD_TEMP)
 
 $(OUTFILE).elf: $(OBJS) $(SYS_OBJS) $(SUBDIRS) $(LPCFIX) $(LD_TEMP)
-	$(CC) $(LDFLAGS) -T $(LD_TEMP) -o $(OUTFILE).elf $(OBJS) $(LDLIBS)
+	$(LD) $(LDFLAGS) -Map=$(OUTFILE).map -T $(LD_TEMP) -o $(OUTFILE).elf $(OBJS) $(LDLIBS)
 	-@echo ""
 	$(SIZE) $(OUTFILE).elf
 	-@echo ""

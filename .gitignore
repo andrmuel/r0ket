@@ -5,3 +5,4 @@
 cscope.out
 tags
 release
+*.pyc

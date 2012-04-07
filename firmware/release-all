@@ -1,5 +1,11 @@
 #!/bin/sh -e
 
+# We currently don't use crypto, so this script is deprecated.
+
+if [ -z ${MAKE} ]; then
+    which gmake >/dev/null && MAKE=gmake || MAKE=make
+fi
+
 TARG=../release
 
 if [ ! -d ../firmware ] ; then
@@ -29,29 +35,14 @@ mkdir $TARG
 mkdir $TARG/files
 
 echo "###"
-echo "### Building initial"
-echo "###"
-
-git checkout filesystem/ffconf.h
-make clean
-make APP=initial
-cp firmware.bin $TARG/initial.bin
-
-echo "###"
 echo "### Building final"
 echo "###"
 export FINAL=y
-cp filesystem/ffconf.h-final filesystem/ffconf.h
-make clean 
+$MAKE clean 
 ./l0dable/mktable.pl
-make APP=final
+$MAKE APP=final
 cp firmware.elf $TARG/final.elf
 cp firmware.bin $TARG/final.bin
-
-echo "###"
-echo "### Building crypto"
-echo "###"
-(cd ../tools/crypto && make)
 
 echo "###"
 echo "### Gathering files"
@@ -63,13 +54,18 @@ cp ../tools/image/lcd/i42.lcd $TARG/files/nick.lcd
 echo "###"
 echo "### Gathering loadables"
 echo "###"
-# XXX: add crypto stuff
-(cd l0dable && make)
+(cd l0dable && $MAKE)
 mv l0dable/*.c0d $TARG/files/
 mv l0dable/*.int $TARG/files/
 mv l0dable/*.nik $TARG/files/
+cp l0dable/files/* $TARG/files/
 
 if grep -q 'define ENCRYPT_L0DABLE' SECRETS ; then
+
+echo "###"
+echo "### Building crypto"
+echo "###"
+(cd ../tools/crypto && $MAKE)
 
 echo "###"
 echo "### Crypting loadables"
@@ -101,4 +97,3 @@ echo "### Done. Yay!"
 echo "###"
 
 git checkout SECRETS
-git checkout filesystem/ffconf.h

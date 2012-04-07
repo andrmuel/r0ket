@@ -1,0 +1,56 @@
+#!/bin/sh
+
+dev=$1
+port=$2
+dir=/tmp/r0ket
+
+set -e
+
+if [ ! -d $dir ] ; then
+	mkdir $dir
+fi
+
+if [ ! -d $dir/$dev ] ; then 
+	mkdir $dir/$dev
+fi
+
+umount /dev/$dev 2>/dev/null || true
+#mkdosfs -I /dev/$dev
+./generate-keys
+mount /dev/$dev -t vfat $dir/$dev
+
+perl copy-files-ordered files $dir/$dev \
+	invaders.c0d \
+	mandel.c0d \
+	r_player.c0d \
+	jump.c0d \
+	bricks.c0d \
+	rockets.c0d \
+	fahrplan.c0d \
+	r0type.c0d \
+	beaconid.c0d \
+	people.c0d \
+	release.c0d \
+	starfld.c0d \
+	static.c0d \
+	sendcard.c0d \
+	recvcard.c0d \
+	showcard.c0d \
+	pongo.c0d \
+	minichat.c0d \
+	blink.c0d \
+	pwgen.c0d \
+	showlcd.c0d \
+	tedliz.c0d \
+	leiwand.c0d \
+	scope.c0d \
+	Geigerct.c0d \
+	voltage.c0d \
+	debug.int
+
+#echo -n "$port" >$dir/$dev/NICK.CFG
+##                         d              
+#echo 0300000f011e00000e0001ff0001ff8f000000 |xxd -r -p >$dir/$dev/R0KET.CFG
+
+umount /dev/$dev
+echo "MASS done: $dev @ $port"

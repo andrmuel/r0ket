@@ -4,7 +4,10 @@
 #include "core/pmu/pmu.h"
 
 #include "basic/basic.h"
+#include "basic/config.h"
 #include "lcd/render.h"
+#include "lcd/print.h"
+#include "usb/usbmsc.h"
 #include "filesystem/ff.h"
 
 
@@ -28,13 +31,13 @@
 #define CRP_VALUE 0x0  // ANY non-magic value disables CRP
 #endif
 
-__attribute__ ((used, section("crp"))) const uint32_t the_crp=CRP_VALUE;
+//__attribute__ ((used, section("crp"))) const uint32_t the_crp=CRP_VALUE;
 
 /**************************************************************************/
 
 void wrapper(void);
 
-int main(void) {
+void main(void) {
     // Configure cpu and mandatory peripherals
     cpuInit();                                // Configure the CPU
 // we do it later
@@ -47,12 +50,36 @@ int main(void) {
     // initialise basic badge functions
     rbInit();
 
-    fsInit();
+    initUUID(); // Cache UUID values.
   
     lcdInit(); // display
 
     lcdFill(0);
     lcdDisplay();
+    
+    switch(getInputRaw()){
+        case BTN_ENTER:
+            lcdPrint("ISP active");
+            lcdRefresh();
+            ReinvokeISP();
+            break;
+        case BTN_DOWN:
+            lcdPrint("MSC active");
+            lcdRefresh();
+            usbMSCInit();
+            while(1);
+            break;
+    };
+
+    fsInit();
+
+    if( getInputRaw() == BTN_UP ){ // Reset config
+            saveConfig();
+    }
 
 	wrapper(); // see module/ subdirectory
 }
+
+int getrelease(void){
+    return 0x0000010e;
+};

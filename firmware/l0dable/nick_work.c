@@ -1,14 +1,5 @@
 /*
- * geigerct.c
- *
- *
- *  Created on: 11.08.2011
- *      Author: Turbo J <turboj@web.de>
- *
- *  Implements simple Geiger Counter
- *  Counts rising edges on P3_0 = BUSINT
- *  so you can directly connect the Geiger board
- *  from http://mightyohm.com/blog/products/geiger-counter/
+ * nick_work.c - workshop nick animation
  *
  */
 
@@ -80,11 +71,12 @@ int melody_timeout;
 
 static void init_lilakit(void);
 static void tick_lilakit(void);
+void melody_play(void);
 static void mainloop();
 void handler(void);
 
 void ram(void) {
-    timer32Callback0 = handler;
+    timer32Callback0 = (uint32_t) handler;
     
     /* Enable the clock for CT32B0 */
     SCB_SYSAHBCLKCTRL |= (SCB_SYSAHBCLKCTRL_CT32B0);
