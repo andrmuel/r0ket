@@ -10,6 +10,7 @@ use Digest::CRC qw(crcccitt);
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
+use lib "$FindBin::Bin/../mesh/lib";
 use r0ket;
 
 $|=1;
@@ -70,8 +71,12 @@ my $hispaddr = sockaddr_in($port, $hisiaddr);
 
 ###send(SOCKET, 0, 0, $hispaddr);
 
-my $xterm=0;
-my $screen=1;
+my $xterm=$ENV{TERM}eq"xterm"?1:0;
+my $screen=$ENV{TERM}eq"screen"?1:0;
+
+if (! -t 1){
+    $xterm=$screen=0;
+};
 
 my $crcerr=0;
 my $errors=0;
@@ -111,13 +116,13 @@ if($verbose){
 };
 my $lasttime=time;
 my $llasttime=time;
-my $pkt;
+my ($type,$pkt);
 my $donl=0;
 
 my($typenick,$typebeacon,$typeunknown)=(0,0,0);
 my($ltypenick,$ltypebeacon,$ltypeunknown)=(0,0,0);
 while(1){
-    $pkt=r0ket::get_packet();
+    ($type,$pkt)=r0ket::get_data(0);
 
     if($verbose){
         if(time-$lasttime >= $intvl){
@@ -145,17 +150,28 @@ while(1){
         };
     };
 
-    next if($pkt eq "ack"); # in-band signalling.
+    if($type==0){ # Read timeout -> Send Heartbeat.
+         $pkt= pack("CC13",
+                 22,        # proto (RFBPROTO_READER_ANNOUNCE)
+                 0,         # unused
+                 );
+         $pkt.=pack("n",crcccitt($pkt));
+#         print "hb: len=",length($pkt),"\n";
+    }elsif($type!=1){
+        print "Unknown packet[type=$type]: $pkt\n";
+    };
+
     if(length($pkt) != 16){  # Sanity check
         $errors++;
+        print STDERR "Length check\n";
         next;
     };
     $ctr++;
 
     my $idoff=0;
-    if(substr($pkt,12,1) eq "\xee"){
-         $idoff=1000;
-    };
+#    if(substr($pkt,12,1) eq "\xee"){
+#         $idoff=1000;
+#    };
 
     my $hdr= pack("CCnnNN",
             1,         # proto (BEACONLOG_SIGHTING)
@@ -170,6 +186,7 @@ while(1){
     send(SOCKET, $crc.$hdr.$pkt,0,$hispaddr);
 
     next if($fast);
+    next if($type==0); # skip hearbeat packets
 
     my $p=r0ket::nice_beacon($pkt);
     if($p->{crc} ne "ok"){
@@ -183,8 +200,8 @@ while(1){
     }else{
         $typeunknown++;
     };
-    if($idoff){
-        $typeunknown++;
-    };
+#    if($idoff){
+#        $typeunknown++;
+#    };
 };
 r0ket::rest();

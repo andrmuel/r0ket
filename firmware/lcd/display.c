@@ -13,6 +13,27 @@
 #define DISPLAY_N1200 0
 #define DISPLAY_N1600 1
 
+#define MODE 8 /* 8 or 16 */
+
+#if MODE == 8
+#define putpix(x) _helper_pixel8(x)
+#define px_INIT_MODE 2
+#define px_PACK(r,g,b) COLORPACK_RGB332(r,g,b)
+#define px_type uint8_t
+#else
+ #if MODE == 12
+ #define putpix(x) _helper_pixel12(x)
+ #define px_INIT_MODE 3
+ #define px_PACK(r,g,b) COLORPACK_RGB444(r,g,b)
+ #define px_type uint16_t
+ #else
+ #define putpix(x) _helper_pixel16(x)
+ #define px_INIT_MODE 5
+ #define px_PACK(r,g,b) COLORPACK_RGB565(r,g,b)
+ #define px_type uint16_t
+ #endif
+#endif
+
 /**************************************************************************/
 /* Utility routines to manage nokia display */
 /**************************************************************************/
@@ -185,38 +206,44 @@ void lcdInit(void) {
         }
     }else{ /* displayType==DISPLAY_N1600 */
         static uint8_t initseq_d[] = {
-        		/* Decoded:
-        		 * CMD 36: MADCTL (argument missing!)
-        		 * CMD 29: DISPON
-        		 * CMD BA: Data order (1)
-        		 *    DAT 07: ignored?
-        		 * CMD 15:  undefined?
-        		 *    DAT 25: ignored?
-        		 *    DAT 3F: ignored?
-        		 * CMD 11: sleep out
-        		 * CMD 13: normal display mode on
-        		 * CMD 37: set scroll entry point
-        		 *   DAT 00:  scroll entry point
-        		 * CMD 3A: interface pixel format
-        		 *   DAT 05: 16 bit/pixel
+        		/* The controller is a PCF8833 -
+                   documentation can be found online.
+        		 * CMD 01: Soft-reset
+        		 * CMD 11: Sleep-out
+        		 * CMD 29: Display ON
+        		 * CMD 03: Booster voltage ON
+        		 * CMD 13: Normal display mode
+        		 * CMD 3A: interface pixel format 
+        		 *   DAT 02  | 02:  8 bit/pixel (3:3:2)
+        		 *           | 03: 12 bit/pixel (4:4:4)
+        		 *           | 05: 16 bit/pixel (5:6:5)
         		 * CMD 2A: column address set
-        		 *   DAT 0    : xs
-        		 *   DAT 98-1 : xe
+        		 *   DAT 1    : xs
+        		 *   DAT 98-2 : xe
         		 * CMD 2B: page address set
-        		 *   DAT 0    : ys
-        		 *   DAT 70-1 : ye
+        		 *   DAT 1    : ys
+        		 *   DAT 70-2 : ye
         		 */
-
-                               0x36,
-                               0x29, 0xBA, 0x07,
-                               0x15, 0x25, 0x3f,
-                               0x11, 0x13, 0x37,
-                               0x00, 0x3A, 0x05,
-                               0x2A, 0, 98-1,
-                               0x2B, 0, 70-1};
-        uint32_t initseq_c = ~ 0x12BA7; // command/data bitstring
+            0x11, 
+            0x29, 
+            0x03, 
+            0x13, 
+            0x3A, px_INIT_MODE, 
+            0x2A, 1, 98-2, 
+            0x2B, 1, 70-2
+        };
+        uint16_t initseq_c = ~  (  /* comands: 1, data: 0 */
+                (1<<0) |
+                (1<<1) |
+                (1<<2) |
+                (1<<3) |
+                (1<<4) | (0<< 5) |
+                (1<<6) | (0<< 7) | (0<< 8) |
+                (1<<9) | (0<<10) | (0<<11) |
+                0);
         int i = 0;
-        lcdWrite(TYPE_CMD,0x01); //sw reset
+
+        lcdWrite(0, 0x01); /* most color displays need the pause */
         delayms(10);
 
         while(i<sizeof(initseq_d)){
@@ -258,24 +285,35 @@ bool lcdGetPixel(char x, char y){
     return byte & (1 << y_off);
 }
 
+// Color display helper functions
+static inline void _helper_pixel8(uint8_t color1){
+    lcdWrite(TYPE_DATA, color1);
+}
 
-// Color display hepler functions
+static void _helper_pixel12(uint16_t color){
+    static char odd=0;
+    static char rest;
+    if(odd){
+        lcdWrite(TYPE_DATA,(rest<<4) | (color>>8));
+        lcdWrite(TYPE_DATA,color&0xff);
+    }else{
+        lcdWrite(TYPE_DATA,(color>>4)&0xff);
+        rest=(color&0x0f);
+    };
+    odd=1-odd;
+}
+
 static void _helper_pixel16(uint16_t color){
     lcdWrite(TYPE_DATA,color>>8);
     lcdWrite(TYPE_DATA,color&0xFF);
 }
 
-static void _helper_hline(uint16_t color){
-    for(int cx=0;cx<98;cx++)
-        _helper_pixel16(color);
-}
-
 #define COLORPACK_RGB565(r,g,b) (((r&0xF8) << 8) | ((g&0xFC)<<3) | ((b&0xF8) >> 3))
+#define COLORPACK_RGB444(r,g,b) ( ((r&0xF0)<<4) | (g&0xF0) | ((b&0xF0)>>4) )
+#define COLORPACK_RGB332(r,g,b) ( (((r>>5)&0x7)<<5) | (((g>>5)&0x7)<<2) | ((b>>6)&0x3) )
 
-static const uint16_t COLOR_FG =    COLORPACK_RGB565(0x00, 0x60, 0x00);
-static const uint16_t COLOR_BG =    COLORPACK_RGB565(0xff, 0xff, 0xff);
-static const uint16_t COLOR_FRAME = COLORPACK_RGB565(0x00, 0x00, 0x80);
-
+static const px_type COLOR_FG =   px_PACK(0x00, 0x00, 0x00);
+static const px_type COLOR_BG =   px_PACK(0xff, 0xff, 0xff);
 
 void lcdDisplay(void) {
     char byte;
@@ -305,33 +343,21 @@ void lcdDisplay(void) {
  
       lcdWrite(TYPE_CMD,0x2C);
   
-      //top line of the frame...
-      _helper_hline(COLOR_FRAME);
-  
       for(y=RESY;y>0;y--){
-          //left line of the frame
-          _helper_pixel16(COLOR_FRAME);
-  
           for(x=RESX;x>0;x--){
               if(GLOBAL(lcdmirror))
-                  px=lcdGetPixel(RESX-x+1,y-1);
+                  px=lcdGetPixel(RESX-x,y-1);
               else
                   px=lcdGetPixel(x-1,y-1);
-                  
-              if((!px)^(!GLOBAL(lcdinvert))) {
-            	  _helper_pixel16(COLOR_FG); /* foreground */
-              } else {
-            	  _helper_pixel16(COLOR_BG); /* background */
-              }
-  
+
+	      if((!px)^(!GLOBAL(lcdinvert))) {
+		      putpix(COLOR_FG); /* foreground */
+	      } else {
+		      putpix(COLOR_BG); /* background */
+	      }
           }
-          //right line of the frame
-          _helper_pixel16(COLOR_FRAME);
       }
-      
-      //bottom line of the frame
-      _helper_hline(COLOR_FRAME);
-      }
+    };
     lcd_deselect();
 }
 
