@@ -38,6 +38,17 @@
 #define BMP085_RESULT_REG_LSB  0xf7
 #define BMP085_RESULT_REG_XLSB 0xf8
 
+/* graph */
+#define GRAPH_TICK_STEP 1000
+#define GRAPH_MIN_X 0
+#define GRAPH_MAX_X 96
+#define GRAPH_MIN_Y 20
+#define GRAPH_MAX_Y 68
+#define GRAPH_MIN_TEMP 150
+#define GRAPH_MAX_TEMP 350
+#define GRAPH_MIN_PRES 100000
+#define GRAPH_MAX_PRES 103000
+
 uint32_t bmp085_set_reg(uint8_t reg_addr, uint8_t reg_val);
 uint8_t bmp085_get_byte_reg(uint8_t reg_addr);
 uint16_t bmp085_get_word_reg(uint8_t reg_addr);
@@ -58,6 +69,9 @@ int16_t MC;
 int16_t MD;
 
 void ram(void) {
+	uint32_t current_tick_count;
+	uint8_t i, j, x, x_old=0, y_t, y_p;
+
 	/* results */
 	int32_t T, p;
 
@@ -72,24 +86,62 @@ void ram(void) {
 
 	/* main loop */
 	while (getInputRaw() != BTN_ENTER) {
+		/* get current tick count */
+		current_tick_count = systickGetTicks();
+
 		/* get temperature & pressure */
 		bmp085_get_temperature_and_pressure(&T, &p);
 		
-		/* clear LCD */
-		lcdClear();
+		/* reset LCD cursor */
+		lcdSetCrsr(0, 0);
 
 		/* display temperature */
-		// lcdPrintln("temperature: ");
 		lcdPrintInt(T/10);
 		lcdPrint(".");
 		lcdPrintInt(T%10);
 		lcdPrintln(" degC");
 
 		/* display pressure */
-		// lcdPrintln("pressure: ");
 		lcdPrint(IntToStr(p, 6, 0));
 		lcdPrintln(" Pa");
 		lcdRefresh();
+
+		/* graph */
+		x = (current_tick_count/GRAPH_TICK_STEP) % (GRAPH_MAX_X-GRAPH_MIN_X) + GRAPH_MIN_X;
+		if (x != x_old) {
+			x_old = x;
+			/* temperature value */
+			if (T <= GRAPH_MIN_TEMP) {
+				y_t = GRAPH_MAX_Y;
+			} else if (T >= GRAPH_MAX_TEMP) {
+				y_t = GRAPH_MIN_Y;
+			} else {
+				y_t = GRAPH_MAX_Y - (T-GRAPH_MIN_TEMP) * (GRAPH_MAX_Y - GRAPH_MIN_Y) / (GRAPH_MAX_TEMP - GRAPH_MIN_TEMP);
+			}
+			/* pressure value */
+			if (p <= GRAPH_MIN_PRES) {
+				y_p = GRAPH_MAX_Y;
+			} else if (p >= GRAPH_MAX_PRES) {
+				y_p = GRAPH_MIN_Y;
+			} else {
+				y_p = GRAPH_MAX_Y - (p-GRAPH_MIN_PRES) * (GRAPH_MAX_Y - GRAPH_MIN_Y) / (GRAPH_MAX_PRES - GRAPH_MIN_PRES);
+			}
+			/* clear out old values */
+			i = x;
+			for (j=GRAPH_MIN_Y; j<GRAPH_MAX_Y; j++) {
+				lcdSetPixel(i, j, 0);
+				if (i+4 < GRAPH_MAX_X) {
+					lcdSetPixel(i+4, j, 0);
+				}
+			}
+			/* temperature pixel */
+			lcdSetPixel(x, y_t, 1);
+			/* pressure pixel */
+			if (x%2 == 0) {
+				lcdSetPixel(x, y_p, 1);
+			}
+			lcdDisplay();
+		}
 	}
 
 	return;
