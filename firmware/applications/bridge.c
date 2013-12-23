@@ -68,7 +68,7 @@ void main_bridge(void)
     nrf_init();
     nrf_config_set(&config);
     
-    nrf_rcv_pkt_start();
+    nrf_rcv_pkt_start(R_CONFIG_EN_CRC);
     while(1){
         int l, i, status;
         CDC_OutBufAvailChar (&l);
@@ -84,7 +84,7 @@ void main_bridge(void)
                             nrf_rcv_pkt_end();
                             status=snd_pkt_no_crc(serialmsg_len, serialmsg_message);
                             //status=nrf_snd_pkt_crc(serialmsg_len, serialmsg_message);
-                            nrf_rcv_pkt_start();
+                            nrf_rcv_pkt_start(R_CONFIG_EN_CRC);
                         break;
                         case '3':
                             memcpy(config.txmac, serialmsg_message, 5);
@@ -158,7 +158,7 @@ void dump_encoded(int len, uint8_t *data)
 
 void tick_bridge(void){
     return;
-};
+}
 
 inline void xmit_spi(uint8_t dat) {
     sspSend(0, (uint8_t*) &dat, 1);
@@ -193,7 +193,7 @@ char snd_pkt_no_crc(int size, uint8_t * pkt)
     CE_LOW();
 
     return nrf_cmd_status(C_NOP);
-};
+}
 
 void serialmsg_init(void)
 {

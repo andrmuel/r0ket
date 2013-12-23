@@ -30,7 +30,7 @@ static int mesh_gt(char curgen, char newgen){
 	if(newgen==0)
 		return 0;
     return (dif>128);
-};
+}
 
 void initMesh(void){
     for(int i=0;i<MESHBUFSIZE;i++){
@@ -40,7 +40,7 @@ void initMesh(void){
     meshbuffer[0].pkt[0]='T';
     MO_TIME_set(meshbuffer[0].pkt,getSeconds());
     meshbuffer[0].flags=MF_USED;
-};
+}
 
 #define MP_OK     0
 #define MP_SEND   1
@@ -54,9 +54,9 @@ int mesh_sanity(uint8_t * pkt){
     if(MO_TYPE(pkt)=='T' && MO_TIME(pkt)<86400)
            return MP_OK;
     if(MO_TYPE(pkt)>='A' && MO_TYPE(pkt)<='Z'){
-        if(MO_TIME(pkt)>1370340000) /* 4.Jun 2013 */
+        if(MO_TIME(pkt)>1401573600) /* 1.6 2014 */
             return MP_SEND;
-        if(MO_TIME(pkt)<1325376000) /* 1.1.2012 */
+        if(MO_TIME(pkt)<1356994800) /* 1.1.2013 */
             return MP_SEND;
     }else if(MO_TYPE(pkt)>='a' && MO_TYPE(pkt)<='z'){
         if(MO_TIME(pkt)>16777216) /* 3-byte only */
@@ -67,6 +67,9 @@ int mesh_sanity(uint8_t * pkt){
     if(MO_TYPE(pkt)!='A' && 
        MO_TYPE(pkt)!='a' && 
        MO_TYPE(pkt)!='i' && 
+       MO_TYPE(pkt)!='j' && 
+       MO_TYPE(pkt)!='r' && 
+       MO_TYPE(pkt)!='s' && 
        MO_TYPE(pkt)!='B' && 
        MO_TYPE(pkt)!='E' && 
        MO_TYPE(pkt)!='F' && 
@@ -76,7 +79,7 @@ int mesh_sanity(uint8_t * pkt){
         return MP_IGNORE;
     };
     return MP_OK;
-};
+}
 
 MPKT * meshGetMessage(uint8_t type){
     int free=-1;
@@ -100,7 +103,7 @@ MPKT * meshGetMessage(uint8_t type){
         meshbuffer[free].flags=MF_USED;
     };
     return &meshbuffer[free];
-};
+}
 
 void meshPanic(uint8_t * pkt,int bufno){
 #if 0
@@ -129,7 +132,7 @@ void meshPanic(uint8_t * pkt,int bufno){
     };
     done=1;
 #endif
-};
+}
 
 void mesh_cleanup(void){
     time_t now=getSeconds();
@@ -154,7 +157,7 @@ void mesh_cleanup(void){
             };
         };
     };
-};
+}
 
 void mesh_sendloop(void){
     int ctr=0;
@@ -200,7 +203,7 @@ void mesh_sendloop(void){
     };
 
     nrf_config_set(&oldconfig);
-};
+}
 
 void mesh_recvqloop_setup(void){
 
@@ -211,8 +214,8 @@ void mesh_recvqloop_setup(void){
 
     mesh_cleanup();
 
-    nrf_rcv_pkt_start();
-};
+    nrf_rcv_pkt_start(R_CONFIG_EN_CRC);
+}
 
 static inline uint32_t popcount(uint32_t *buf, uint8_t n){
     int cnt=0;
@@ -335,7 +338,7 @@ uint8_t mesh_recvqloop_work(void){
         mpkt->flags=MF_USED;
 
         return 1;
-};
+}
 
 void mesh_recvqloop_end(void){
     nrf_rcv_pkt_end();
@@ -355,7 +358,7 @@ void mesh_recvloop(void){ /* unused: replaced by mesh_recvloop_plus */
         };
     }while(getTimer()<recvend && pktctr<MESHBUFSIZE);
     mesh_recvqloop_end();
-};
+}
 
 uint8_t mesh_recvloop_plus(uint8_t state){
     static int recvend=0;
@@ -378,7 +381,7 @@ uint8_t mesh_recvloop_plus(uint8_t state){
                 state=QS_END;
     };
     return state;
-};
+}
 
 void mesh_systick(void){
     static int rcvctr=0;
@@ -395,5 +398,5 @@ void mesh_systick(void){
         sendctr=M_SENDINT/SYSTICKSPEED/2;
         sendctr+=getRandom()%(sendctr*2);
     };
-};
+}
 

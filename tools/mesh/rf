@@ -2,6 +2,8 @@
 #
 # vim:set ts=4 sw=4:
 
+# Maybe try "stty <$dev raw" if funky stuff
+
 use strict;
 
 use IO::Select;
@@ -27,45 +29,6 @@ GetOptions (
 
 $help=1 if($ARGV[0] =~ /^[h?]/);
 
-if ($help){
-    print STDERR "Mini-Help:\n";
-    print STDERR "-d <devicename> (or \$R0KETBRIDGE)\n";
-    print STDERR "-w write beacon2nick file\n";
-    print STDERR "\n";
-    print STDERR "recv<num>: receive (number) pakets\n";
-    print STDERR " - r        : try to autodetect packet format\n";
-    print STDERR " - r hex    : hexdump packets\n";
-    print STDERR " - r ascii  : asciidump packets\n";
-    print STDERR " - r beacon : parse as openbeacon\n";
-    print STDERR " - r mesh   : parse as mesh packet\n";
-    print STDERR " - r game   : parse as game packet(incomplete)\n";
-    print STDERR "\n";
-    print STDERR "send<num>: send packet (number) times\n";
-    print STDERR " - s raw <hex>: send raw hex packet\n";
-    print STDERR " - s hex <hex>: send packet with crc16\n";
-    print STDERR " - s mesh t <gen>: send mesh time packet\n";
-    print STDERR " - s mesh <other>, see source :-)\n";
-    print STDERR "\n";
-    print STDERR "preset: config per preset\n";
-    print STDERR "- p m - preset minimesh\n";
-    print STDERR "- p b - preset openbeacon\n";
-    print STDERR "- p a - preset game announce\n";
-    print STDERR "- p r - preset sample game\n";
-    print STDERR "- p s - preset for sniffing\n";
-    print STDERR "config: config rf chip\n";
-    print STDERR "- c rx  - set rxmac\n";
-    print STDERR "- c tx  - set txmac\n";
-    print STDERR "- c len - set rxlength\n";
-    print STDERR "- c ch  - set channel\n";
-    print STDERR "- c <opt>hex - set any of the previous option via hex string\n";
-    print STDERR "- c id  - read beacon id\n";
-    print STDERR "- c w   - set mac width (2-5)\n";
-    print STDERR "- c cfg - config (crc)\n";
-    print STDERR "\n";
-    print STDERR "etc...\n";
-    exit(1);
-};
-
 END{
     r0ket::writebeacon if($writend);
 };
@@ -89,60 +52,46 @@ dwim(@args[$sidx..$#args]);
 sub dwim{
 my $cmd=shift;
 
-if($cmd =~ /^r/){
-    r0ket::readbeacon();
-	$cmd=~s/r(ecv)?//;
-	$cmd=100 if $cmd+0==0;
-	my $fmt=shift || "_";
-    my $arg=shift || undef;
-	my $read="";
-
-    my $str;
-    while($cmd>0){
-        $str=r0ket::get_packet();
-
-        if($fmt =~ /_/){
-            if(substr($str,0,1)eq "\x10"){
-                if(substr($str,1,1)eq"G"){
-                    $fmt="g_";
-                }else{
-                    $fmt="b_";
-                };
-            }elsif(substr($str,0,1)eq "\x20"){
-                $fmt="g_";
-            }elsif(length($str)==32){
-                $fmt="m_";
-            }else{
-                $fmt="x_";
-            };
-        };
-
-        if($fmt =~ /^m/){
-            my $p=r0ket::nice_mesh($str);
-            print $p->{string};
-        }elsif($fmt =~ /^b/){
-            my $p=r0ket::nice_beacon($str);
-            print $p->{string};
-        }elsif($fmt =~ /^g/){
-            my $p=r0ket::nice_game($str);
-            print $p->{string};
-        }elsif($fmt =~ /^(x|hex)/){
-            my $pkt_crc=  unpack("n",substr($str,length($str)-2,2));
-            my $calc_crc= crcccitt(substr($str,0,length($str)-2));
-            print "<",unpack("H*",$str),">";
-            if($pkt_crc ne $calc_crc){
-                print " CRCFAIL";
-            };
-        }elsif($fmt =~ /^a/){
-            print "<", r0ket::sprint($str), ">";
-        }else{
-            die "Unknown packet format: $fmt\n";
-        };
-        print "\n";
-        $cmd--;
-        next;
-    };
-    r0ket::rest();
+if($cmd =~ /^h/ || $help){
+    print STDERR "Mini-Help:\n";
+    print STDERR "-d <devicename> (or \$R0KETBRIDGE)\n";
+    print STDERR "-w write beacon2nick file\n";
+    print STDERR "\n";
+    print STDERR "preset: config per preset\n";
+    print STDERR "- p m            - preset minimesh\n";
+    print STDERR "- p b            - preset openbeacon\n";
+    print STDERR "- p a            - preset game announce\n";
+    print STDERR "- p r            - preset sample game\n";
+    print STDERR "- p s <ch>       - preset for sniffing on channel <ch>\n";
+    print STDERR "- p k <ch> <key> - preset for sniffing keyboard. Edit source for mac/channel\n";
+    print STDERR "\n";
+    print STDERR "recv<num>: receive (number) pakets\n";
+    print STDERR "- r              - try to autodetect packet format\n";
+    print STDERR "- r x|hex        - hexdump packets\n";
+    print STDERR "- r ascii        - asciidump packets\n";
+    print STDERR "- r beacon       - parse as openbeacon\n";
+    print STDERR "- r mesh         - parse as mesh packet\n";
+    print STDERR "- r game         - parse as game packet(incomplete)\n";
+    print STDERR "- r sniff <len>  - parse as sniffed MACs\n";
+    print STDERR "- r key <key>    - parse as keyboard packets (w/encryption key)\n";
+    print STDERR "\n";
+    print STDERR "send<num>: send packet (number) times\n";
+    print STDERR "- s raw <hex>    - send raw hex packet\n";
+    print STDERR "- s hex <hex>    - send packet with crc16\n";
+    print STDERR "- s mesh t <gen> - send mesh time packet\n";
+    print STDERR "- s mesh <other> - see source :-)\n";
+    print STDERR "\n";
+    print STDERR "config: config rf chip directly\n";
+    print STDERR "- c rx       - set rxmac\n";
+    print STDERR "- c tx       - set txmac\n";
+    print STDERR "- c len      - set rxlength\n";
+    print STDERR "- c ch       - set channel\n";
+    print STDERR "- c w        - set mac width (2-5)\n";
+    print STDERR "- c cfg      - config (crc)\n";
+    print STDERR "- c id       - read beacon id\n";
+    print STDERR "- c <opt>hex - set any of the previous option via hex string\n";
+    print STDERR "\n";
+    print STDERR "etc...\n";
 }elsif ($cmd =~ /^p/){ # Preset
     my $sub=shift;
     if ($sub =~/^m/i){ # Default mesh settings.
@@ -174,19 +123,135 @@ if($cmd =~ /^r/){
         r0ket::set_rxlen(32);
         r0ket::set_config(1);
     }elsif ($sub =~/^s/i){ # Sniffing
-       r0ket::set_rxmac(pack("H*","5500000000"));
+        r0ket::set_rxmac(pack("H*","AA00000000"));
         r0ket::set_rxlen(32);
         r0ket::set_channel(shift);
-        r0ket::set_mac_width(2);
+        r0ket::set_mac_width(2); # sets the rxmac to 5500
+        r0ket::set_config(0); #disable the crc check
+    }elsif ($sub =~/^k/i){ # Keyboard
+        r0ket::set_channel(shift||25);
+        r0ket::set_rxmac(pack("H*",shift||"9246075c59"));
+        r0ket::set_rxlen(20);
+        r0ket::set_mac_width(5);
         r0ket::set_config(0);
     }else{
         die "Unkown preset $sub\n";
     };
+}elsif ($cmd =~ /^r/){ # Receive (and decode)
+    r0ket::readbeacon();
+	$cmd=~s/r(ecv)?//;
+	$cmd=100 if $cmd+0==0;
+	my $fmt=shift || "_";
+    my $arg=shift || undef;
+	my $read="";
+
+    my $str;
+    while($cmd>0){
+        $str=r0ket::get_packet();
+
+        if($fmt =~ /_/){
+            if(substr($str,0,1)eq "\x10"){
+                if(substr($str,1,1)eq"G"){
+                    $fmt="g_";
+                }else{
+                    $fmt="b_";
+                };
+            }elsif(substr($str,0,1)eq "\x20"){
+                $fmt="g_";
+            }elsif(substr($str,0,1)eq "\xbd"){
+                $fmt="k_";
+            }elsif(length($str)==32){
+                $fmt="m_";
+            }else{
+                $fmt="x_";
+            };
+        };
+
+        if($fmt =~ /^m(esh)?/){
+            my $p=r0ket::nice_mesh($str);
+            print $p->{string};
+        }elsif($fmt =~ /^b(eacon)?/){
+            my $p=r0ket::nice_beacon($str);
+            print $p->{string};
+        }elsif($fmt =~ /^g(ame)?/){
+            my $p=r0ket::nice_game($str);
+            print $p->{string};
+        }elsif($fmt =~ /^s(niff)?/){
+            my $len=shift || 5;
+            print unpack("H*",substr($str,0,$len));
+            print " <",unpack("H*",substr($str,$len)),">";
+        }elsif($fmt =~ /^k(ey)?/){
+            $str^="\xff"x length($str); # invert data
+#            print "[".unpack("H*",$str)."] ";
+
+            my $key;
+            if(defined $arg){
+                $key=pack("H*",$arg) ^ pack("H*","ff"x5);
+            };
+
+            my $bin= unpack("B*",$str);
+            my ($pl,$pid,$ack)= $bin=~/^(......)(..)(.)/; # Get that 9-bit-field
+            $str=pack("B*",substr($bin,9,-7)); # Put the rest in proper bytes again
+
+            print "(",unpack("C",pack("B*","00".$pl))," ",
+                  unpack("C",pack("B*","000000".$pid))," ",
+                  $ack,") ";
+
+            my $hdr=substr($str,0,4,"");
+            my $pkt_crc=substr($str,-2,2,"");
+
+            print unpack("H*",$hdr),":";
+            if(defined $key){
+                my $dec=$str^($key x 3);
+                $dec=substr($dec,0,length($str));
+                print "<".join(",",
+                       unpack "H2"x length($dec) ,$dec
+                        ).">";
+
+# check in-packet checksum
+                my $cksum=0xff;
+                for (unpack("C"x length($hdr.$dec),$hdr.$dec)){
+                    $cksum^=$_;
+                };
+                if($cksum){
+                    print "[CK=$cksum!]";
+                };
+# check chip-crc-checksum
+                my $crc=crcccitt(scalar reverse $key);
+                $crc=crcccitt(pack("B*",$pl.$pid),$crc);
+                my $bit=(($crc&(1<<15))>0);
+                $crc=($crc<<1)&0xffff;
+                $crc^=0x1021 if ($bit^$ack);
+                $crc=crcccitt($hdr.$str,$crc);
+                if($crc != unpack("n",$pkt_crc)){
+                    printf "[CRC=%04x]",$crc;
+                };
+            }else{
+                print unpack("H*",$str);
+            };
+            print ":",unpack("H*",$pkt_crc);
+        }elsif($fmt =~ /^(x|hex)/){
+            my $pkt_crc=  unpack("n",substr($str,length($str)-2,2));
+            my $calc_crc= crcccitt(substr($str,0,length($str)-2));
+            print "<",unpack("H*",$str),">";
+            if($pkt_crc ne $calc_crc){
+                print " CRCFAIL";
+            };
+        }elsif($fmt =~ /^a/){
+            print "<", r0ket::sprint($str), ">";
+        }else{
+            die "Unknown packet format: $fmt\n";
+        };
+        print "\n";
+        $cmd--;
+        next;
+    };
+    r0ket::rest();
 }elsif ($cmd =~ /^c/){
     my $set=shift;
 
     if($set=~s/hex//){
-        $ARGV[0]=pack("H*",$ARGV[0]);
+        unshift @_, pack("H*",shift);
     };
     if ($set =~ /^tx/){
         r0ket::set_txmac(shift);
@@ -208,7 +273,7 @@ if($cmd =~ /^r/){
     };
 
 }elsif ($cmd =~ /^s/){
-	$cmd=~s/^//;
+	$cmd=~s/^s//;
 	$cmd=1 if $cmd==0;
 
     my $pkt;
@@ -285,6 +350,13 @@ if($cmd =~ /^r/){
 
             $pkt.=shift;
             $pkt.="\0"x(30-length($pkt));
+        }elsif($scmd eq "g"){
+            $pkt.="g";
+            $pkt.=chr(shift); #gen
+            $pkt.=pack("N",shift||42);
+
+            $pkt.=shift;
+            $pkt.="\0"x(30-length($pkt));
         }else{
             die "Unknown mesh subtype: $scmd\n";
         };
@@ -297,6 +369,7 @@ if($cmd =~ /^r/){
     print "crc: ",unpack("n",substr($pkt,length($pkt)-2,2))," ";
     print "len: ",length($pkt),"\n";
 	while($cmd-->0){
+        print "write $cmd\n";
         r0ket::send_pkt($pkt);
         r0ket::wait_ok;
 	};
@@ -309,5 +382,3 @@ if($cmd =~ /^r/){
 #  sysread($fh[0],$read,1024);
 #}
 #print "PostRead: <", sprint($read), ">\n";
-
-

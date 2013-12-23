@@ -50,6 +50,7 @@
 #define R_RX_PW_P5		0x16
 #define R_FIFO_STATUS		0x17
 #define R_DYNPD			0x1c
+#define R_FEATURE		0x1d
 
 // Register Flags
 
@@ -81,7 +82,7 @@
 #define R_EN_RXADDR_ERX_P0       0x01
 #define R_EN_RXADDR_ERX_NONE     0x00
 
-// RF_CH register definitions
+//RF_CH register definitions
 #define R_RF_CH_BITS             0x7f
 
 //RF_SETUP register definitions
@@ -103,6 +104,10 @@
 #define R_SETUP_AW_4             0x02
 #define R_SETUP_AW_5             0x03
 
+//SETUP_RETR register definitions
+#define R_SETUP_RETR_ARD(x)      (((x/250)-1)<<4)
+#define R_SETUP_RETR_ARC(x)      (x)
+
 //STATUS register definitions
 #define R_STATUS_RX_DR           0x40
 #define R_STATUS_TX_DS           0x20
@@ -111,6 +116,19 @@
 #define R_STATUS_GET_RX_P_NO(x)  ((x&R_STATUS_RX_P_NO)>>1)
 #define R_STATUS_RX_FIFO_EMPTY   0x0E
 #define R_STATUS_TX_FULL         0x01
+
+//DYNPD register definitions
+#define R_DYNPD_DPL_P5           0x20
+#define R_DYNPD_DPL_P4           0x10
+#define R_DYNPD_DPL_P3           0x08
+#define R_DYNPD_DPL_P2           0x04
+#define R_DYNPD_DPL_P1           0x02
+#define R_DYNPD_DPL_P0           0x01
+
+//FEATURE register definitions
+#define R_FEATURE_EN_DPL         0x04
+#define R_FEATURE_EN_ACK_PAY     0x02
+#define R_FEATURE_EN_DYN_ACK     0x01
 
 /* config structure */
 
@@ -133,6 +151,7 @@ typedef struct NRF_CFG * nrfconfig;
 
 int nrf_rcv_pkt_time_encr(int maxtime, int maxsize, uint8_t * pkt, uint32_t const k[4]);
 
+char nrf_snd_pkt(int size, uint8_t * pkt);
 #define nrf_snd_pkt_crc(size, pkt) \
     nrf_snd_pkt_crc_encr(size, pkt, NULL)
 char nrf_snd_pkt_crc_encr(int size, uint8_t * pkt, uint32_t const k[4]);
@@ -160,7 +179,7 @@ void nrf_config_get(nrfconfig config);
 void nrf_set_strength(unsigned char strength);
 
 // new receive IF
-void nrf_rcv_pkt_start(void);
+void nrf_rcv_pkt_start(char config);
 int nrf_rcv_pkt_poll(int maxsize, uint8_t * pkt);
 int nrf_rcv_pkt_poll_dec(int maxsize, uint8_t * pkt, uint32_t const key[4]);
 
